@@ -1,2 +1,4 @@
-/target
+**/target/
 scores.txt
+
+.venv/
