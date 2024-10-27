@@ -43,6 +43,15 @@ java -jar fall-challenge-2024-moon-city-1.0-SNAPSHOT.jar "rust_solution/target/r
 
 **Precompiled version (may be outdated):**
 
+If you are using a venv, you may need to change the path of the venv as default python interpreter:
+
+```sh
+set PATH=F:\admin\PycharmProjects\CG\Competition\optimisation\cg_selenia_city\python_solution\.venv\Scripts;%PATH%
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ adjust
+```
+
+Then you can run it
+
 ```sh
 java -jar fall-challenge-2024-moon-city-1.0-SNAPSHOT.jar "python python_solution/main.py" config/ ref_scores.txt
 ```

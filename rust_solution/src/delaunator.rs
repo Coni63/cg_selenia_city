@@ -18,7 +18,7 @@ println!("{:?}", result.triangles); // [0, 2, 1, 0, 3, 2]
 ```
 */
 
-use crate::point::Point;
+use crate::game::Point;
 use core::cmp::Ordering;
 /// Near-duplicate points (where both `x` and `y` only differ within this value)
 /// will not be included in the triangulation for robustness.

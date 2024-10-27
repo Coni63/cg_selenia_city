@@ -1,0 +1,26 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Moon City Challenge",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/python_solution/main.py",
+            "preLaunchTask": "Run Moon City Challenge"
+        },
+        {
+            "name": "Run Rust Application",
+            "request": "launch",
+            "command": "java",
+            "args": [
+                "-jar",
+                "fall-challenge-2024-moon-city-1.0-SNAPSHOT.jar",
+                "rust_solution/target/release/agent.exe",
+                "config/",
+                "ref_scores.txt"
+            ],
+            "preLaunchTask": "Build Rust Application"
+        }
+    ]
+}
+

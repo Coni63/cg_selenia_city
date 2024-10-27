@@ -1,0 +1,76 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run Moon City Challenge",
+            "type": "shell",
+            "command": "java",
+            "args": [
+                "-jar",
+                "fall-challenge-2024-moon-city-1.0-SNAPSHOT.jar",
+                "python python_solution/main.py",
+                "config/",
+                "ref_scores.txt"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Run the Moon City Challenge with the specified Python script",
+            "options": {
+                "env": {
+                    "PATH": "F:\\admin\\PycharmProjects\\CG\\Competition\\optimisation\\cg_selenia_city\\python_solution\\.venv\\Scripts;${env:PATH}"
+                }
+            }
+        },
+        {
+            "label": "Build Rust Application",
+            "type": "shell",
+            "command": "cargo",
+            "args": [
+                "build",
+                "--release"
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "detail": "Build the Rust application in release mode",
+            "options": {
+                "cwd": "${workspaceFolder}/rust_solution"
+            }
+        },
+        {
+            "label": "Run Rust Application",
+            "type": "shell",
+            "command": "java",
+            "args": [
+                "-jar",
+                "fall-challenge-2024-moon-city-1.0-SNAPSHOT.jar",
+                "rust_solution/target/release/agent.exe",
+                "config/",
+                "ref_scores.txt"
+            ],
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            },
+            "detail": "Run the Moon City Challenge with the compiled Rust application",
+            "dependsOn": "Build Rust Application"
+        },
+        {
+            "type": "shell",
+            "command": "echo 'Rebuild Protoc task completed'",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "label": "test Application"
+          }
+    ]
+}

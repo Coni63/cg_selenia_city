@@ -1,8 +1,9 @@
+use game::GameState;
+
 mod delaunator;
 mod game;
 mod loader;
-mod point;
-
+mod utils;
 /**
  * Auto-generated code below aims at helping you parse
  * the standard input according to the problem statement.
@@ -10,7 +11,8 @@ mod point;
 fn main() {
     // game loop
     loop {
-        let game = loader::load();
+        let mut game = GameState::new();
+        loader::load(&mut game);
 
         eprintln!("{:?}", game);
 
