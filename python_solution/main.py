@@ -1,6 +1,6 @@
 import sys
 import math
-
+import time
 import numpy as np
 from scipy.spatial import Delaunay
 from scipy.sparse import csr_matrix
@@ -15,22 +15,31 @@ class TubePlacer:
         Args:
             points: numpy array of shape (n, 2) containing point coordinates
         """
+        self.points = np.array(points)
+
+
+        temp_d = cdist(self.points, self.points, metric='euclidean') / 10
+        d = np.zeros_like(temp_d)
         if len(points) == 2:
-            self.points = np.array(points)
             self.existing_tubes = set()
             self.edges = {(0, 1)}
         else:
-            self.points = np.array(points)
-            self.tri = Delaunay(points)
             self.existing_tubes = set()  # Store pairs of point indices that have tubes
-            
             # Create initial graph of possible connections
             self.edges = set()
-            for simplex in self.tri.simplices:
+            for simplex in Delaunay(points).simplices:
                 n = len(simplex)
                 for i in range(n):
                     for j in range(i + 1, n):
                         self.edges.add(tuple(sorted([simplex[i], simplex[j]])))
+
+        print(f"{len(self.points)} vs {len(self.edges)}", file=sys.stderr)
+
+        for a, b in self.edges:
+            d[a, b] = temp_d[a, b]
+            d[b, a] = temp_d[b, a]
+
+        self.dist_cost = csr_matrix(d)
     
     def line_segments_intersect(self, p1, p2, p3, p4):
         """
@@ -85,6 +94,8 @@ class TubePlacer:
         edge = tuple(sorted([start_idx, end_idx]))
         if edge in self.edges and not self.would_intersect(edge):
             self.existing_tubes.add(edge)
+            self.dist_cost[start_idx, end_idx] = 0.0
+            self.dist_cost[end_idx, start_idx] = 0.0
             return True
         return False
     
@@ -100,16 +111,17 @@ class TubePlacer:
         n_points = len(self.points)
         
         # Create adjacency matrix
-        adj_matrix = np.zeros((n_points, n_points))
-        for edge in valid_edges:
-            i, j = edge
-            dist = np.linalg.norm(self.points[i] - self.points[j])
-            adj_matrix[i, j] = dist
-            adj_matrix[j, i] = dist
+        # adj_matrix = np.zeros((n_points, n_points))
+        # for edge in valid_edges:
+        #     i, j = edge
+        #     dist = np.linalg.norm(self.points[i] - self.points[j])
+        #     adj_matrix[i, j] = dist
+        #     adj_matrix[j, i] = dist
         
         # Find shortest path
-        graph = csr_matrix(adj_matrix)
-        dist_matrix, predecessors = shortest_path(graph, 
+        # graph = csr_matrix(adj_matrix)
+        dist_matrix, predecessors = shortest_path(self.dist_cost, 
+                                                method="D",
                                                directed=False, 
                                                indices=[start_idx],
                                                return_predecessors=True)
@@ -144,13 +156,13 @@ class Building(Position):
         self.id = _id
         self.type = _type
         self.crew = [0 for i in range(21)]
-
         for i in crew:
             self.crew[i] += 1
 
     def __repr__(self):
         return f"Building type {self.type} #{self.id} ({self.x}, {self.y}) => {self.crew}"
 
+k = 0
 all_buildings = []
 positions = []
 # game loop
@@ -181,48 +193,53 @@ while True:
         s = input().split()
         # print(s, file=sys.stderr)
         if len(s) == 4:
-            type_, id_, x, y = [int(x) for x in s]
+            id_, type_, x, y = [int(x) for x in s]
             crew = []
         else:
-            type_, id_, x, y, num_crew, *crew = [int(x) for x in s]
+            id_, type_, x, y, num_crew, *crew = [int(x) for x in s]
         all_buildings.append(Building(type_, id_, x, y, crew))
         positions.append( [float(x), float(y)])
 
     placer = TubePlacer(positions)
-    print(placer.edges, file=sys.stderr)
+    # print(placer.edges, file=sys.stderr)
 
-    dist_cost = cdist(positions, positions, metric='euclidean') / 10
-    print(dist_cost, file=sys.stderr)
+    for a, b in present:
+        placer.add_tube(a, b)
 
-    missing_edges = placer.edges - present
+    tic = time.time()
 
     s = ["WAIT"]
-    for i, (a, b) in enumerate(missing_edges):
-        cost = math.floor(dist_cost[a, b]) + 1000
+    for base in all_buildings:
+        if base.type == 0:
+            print(f"base {base.id}", file=sys.stderr)
+            for i in range(1, 21):
+                if base.crew[i] > 0:
+                    for building in all_buildings:
+                        if building.type == i:
+                            path = placer.find_shortest_path(base.id, building.id)
+                            # print(f"Shortest path from point {base.id} to {building.id}: {path}", file=sys.stderr)
+                            
+                            total_cost = 0
+                            for a, b in zip(path[:-1], path[1:]):
+                                total_cost += placer.dist_cost[a, b]
+                            
+                            # print(f"Total Cost: {total_cost}", file=sys.stderr)
 
-        if cost < resources:
-            resources -= cost
-            s.append(f"TUBE {a} {b}")
-            s.append(f"POD {num_pods + i} {a} {b} {a}")
+                            cost = math.floor(total_cost) + 1000
+                            if cost < resources:
+                                resources -= cost
+                                for a, b in zip(path[:-1], path[1:]):
+                                    if placer.dist_cost[a, b] > 0:
+                                        s.append(f"TUBE {a} {b}")
+                                        placer.add_tube(a, b)
+                                seq = " ".join(map(str, path + path[:-1:-1]))
+                                s.append(f"POD {k} {seq}")
+                                k +=1
 
-
-
-    print(";".join(s))
-    # # Add some tubes
-    # placer.add_tube(0, 1)
-    # placer.add_tube(1, 2)
-    # placer.add_tube(0, 2)
-    
-    # # Find path between points
-    # path = placer.find_shortest_path(0, 2)
-    # print(f"Shortest path from point 0 to 2: {path}")
-    
-    # # Get remaining valid edges
-    # valid_edges = placer.get_valid_edges()
-    # print(f"Valid edges remaining: {valid_edges}")
-
-    # Write an action using print
-    # To debug: print("Debug messages...", file=sys.stderr, flush=True)
+                            if resources <= 1000:
+                                break
 
     # TUBE | UPGRADE | TELEPORT | POD | DESTROY | WAIT
     # print("TUBE 0 1;TUBE 0 2;POD 42 0 1 0 2 0 1 0 2")
+
+    print(";".join(s))
