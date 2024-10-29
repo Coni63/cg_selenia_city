@@ -6,6 +6,7 @@ from scipy.spatial import Delaunay
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import shortest_path
 from scipy.spatial.distance import cdist
+from queue import PriorityQueue
 
 class TubePlacer:
     def __init__(self, points):
@@ -19,7 +20,7 @@ class TubePlacer:
 
 
         temp_d = cdist(self.points, self.points, metric='euclidean') / 10
-        d = np.zeros_like(temp_d)
+        self.dist_cost = np.zeros_like(temp_d) - 1
         if len(points) == 2:
             self.existing_tubes = set()
             self.edges = {(0, 1)}
@@ -36,10 +37,8 @@ class TubePlacer:
         print(f"{len(self.points)} vs {len(self.edges)}", file=sys.stderr)
 
         for a, b in self.edges:
-            d[a, b] = temp_d[a, b]
-            d[b, a] = temp_d[b, a]
-
-        self.dist_cost = csr_matrix(d)
+            self.dist_cost[a, b] = temp_d[a, b]
+            self.dist_cost[b, a] = temp_d[b, a]
     
     def line_segments_intersect(self, p1, p2, p3, p4):
         """
@@ -99,44 +98,72 @@ class TubePlacer:
             return True
         return False
     
-    def find_shortest_path(self, start_idx, end_idx):
+    def find_shortest_path(self, start_idx: int, end_idx: int) -> tuple[list[int], float]:
         """
-        Find shortest path between two points using only valid edges.
+        Find shortest path between two points using A* algorithm.
         
         Args:
             start_idx: index of starting point
             end_idx: index of ending point
+
+        Returns:
+            tuple[list[int], float]: (sequence of node indices, total distance)
         """
-        valid_edges = self.get_valid_edges()
-        n_points = len(self.points)
+        # Initialize data structures
+        frontier = PriorityQueue()
+        frontier.put((0, start_idx))
+        came_from = {start_idx: None}
+        cost_so_far = {start_idx: 0}
         
-        # Create adjacency matrix
-        # adj_matrix = np.zeros((n_points, n_points))
-        # for edge in valid_edges:
-        #     i, j = edge
-        #     dist = np.linalg.norm(self.points[i] - self.points[j])
-        #     adj_matrix[i, j] = dist
-        #     adj_matrix[j, i] = dist
+        def get_neighbors(node_idx):
+            """Get valid neighbors of a node."""
+            neighbors = []
+            for neighbor_idx, dist in enumerate(self.dist_cost[node_idx]):
+                if dist >= 0:  # Valid edge
+                    neighbors.append((neighbor_idx, dist))
+            return neighbors
         
-        # Find shortest path
-        # graph = csr_matrix(adj_matrix)
-        dist_matrix, predecessors = shortest_path(self.dist_cost, 
-                                                method="D",
-                                               directed=False, 
-                                               indices=[start_idx],
-                                               return_predecessors=True)
+        def heuristic(node_idx):
+            """
+            Heuristic function for A*.
+            Using 0 makes this equivalent to Dijkstra's algorithm.
+            """
+            return 0
+        
+        # A* algorithm
+        while not frontier.empty():
+            current_priority, current = frontier.get()
+            
+            # Exit if we reached the goal
+            if current == end_idx:
+                break
+                
+            # Check all neighbors
+            for next_node, dist in get_neighbors(current):
+                new_cost = cost_so_far[current] + dist
+                
+                if next_node not in cost_so_far or new_cost < cost_so_far[next_node]:
+                    cost_so_far[next_node] = new_cost
+                    priority = new_cost + heuristic(next_node)
+                    frontier.put((priority, next_node))
+                    came_from[next_node] = current
         
         # Reconstruct path
-        path = []
-        if predecessors[0, end_idx] != -9999:  # Check if path exists
-            current = end_idx
-            while current != start_idx:
-                path.append(current)
-                current = predecessors[0, current]
-            path.append(start_idx)
-            path.reverse()
+        if end_idx not in came_from:  # No path found
+            return [], float('inf')
             
-        return path if path else None
+        path = []
+        current = end_idx
+        
+        while current is not None:
+            path.append(current)
+            current = came_from[current]
+        
+        path.reverse()
+        
+        return path, cost_so_far[end_idx]
+
+        
 
 # Auto-generated code below aims at helping you parse
 # the standard input according to the problem statement.
@@ -211,18 +238,16 @@ while True:
     s = ["WAIT"]
     for base in all_buildings:
         if base.type == 0:
+            if time.time() - tic > 0.4:
+                break
+                
             print(f"base {base.id}", file=sys.stderr)
             for i in range(1, 21):
                 if base.crew[i] > 0:
                     for building in all_buildings:
                         if building.type == i:
-                            path = placer.find_shortest_path(base.id, building.id)
+                            path, total_cost = placer.find_shortest_path(base.id, building.id)
                             # print(f"Shortest path from point {base.id} to {building.id}: {path}", file=sys.stderr)
-                            
-                            total_cost = 0
-                            for a, b in zip(path[:-1], path[1:]):
-                                total_cost += placer.dist_cost[a, b]
-                            
                             # print(f"Total Cost: {total_cost}", file=sys.stderr)
 
                             cost = math.floor(total_cost) + 1000
