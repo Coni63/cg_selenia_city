@@ -190,32 +190,34 @@ class Building(Position):
         return f"Building type {self.type} #{self.id} ({self.x}, {self.y}) => {self.crew}"
 
 k = 0
+resources = 0
 all_buildings = []
 positions = []
+done = set()
 # game loop
 while True:
     resources = int(input())
-    print(f"{resources} resources", file=sys.stderr)
+    # print(f"{resources} resources", file=sys.stderr)
     
     all_routes = []
     present = set()
     num_travel_routes = int(input())
-    print(f"{num_travel_routes} routes", file=sys.stderr)
+    # print(f"{num_travel_routes} routes", file=sys.stderr)
     for i in range(num_travel_routes):
         building_id_1, building_id_2, capacity = [int(j) for j in input().split()]
         present.add(tuple(sorted([building_id_1, building_id_2])))
-        print(f"Route {building_id_1} -> {building_id_2} ({capacity})", file=sys.stderr)
+        # print(f"Route {building_id_1} -> {building_id_2} ({capacity})", file=sys.stderr)
     
     all_pods = []
     num_pods = int(input())
-    print(f"{num_pods} pods", file=sys.stderr)
+    # print(f"{num_pods} pods", file=sys.stderr)
     for i in range(num_pods):
         id_, num_nodes, *path = [int(x) for x in input().split()]
         all_pods.append(Pod(id_, path))
-        print(id_, num_nodes, path, file=sys.stderr)
+        # print(id_, num_nodes, path, file=sys.stderr)
     
     num_new_buildings = int(input())
-    print(f"{num_new_buildings} buildings", file=sys.stderr)
+    # print(f"{num_new_buildings} buildings", file=sys.stderr)
     for i in range(num_new_buildings):
         s = input().split()
         # print(s, file=sys.stderr)
@@ -240,29 +242,36 @@ while True:
         if base.type == 0:
             if time.time() - tic > 0.4:
                 break
-                
+
             print(f"base {base.id}", file=sys.stderr)
             for i in range(1, 21):
                 if base.crew[i] > 0:
+                    best_dist, best_path = 999999999, []
                     for building in all_buildings:
-                        if building.type == i:
+                        if building.type == i and (base.id, building.id) not in done:
                             path, total_cost = placer.find_shortest_path(base.id, building.id)
-                            # print(f"Shortest path from point {base.id} to {building.id}: {path}", file=sys.stderr)
+                            print(f"Shortest path from point {base.id} to {building.id}: {path}", file=sys.stderr)
                             # print(f"Total Cost: {total_cost}", file=sys.stderr)
 
                             cost = math.floor(total_cost) + 1000
-                            if cost < resources:
-                                resources -= cost
-                                for a, b in zip(path[:-1], path[1:]):
-                                    if placer.dist_cost[a, b] > 0:
-                                        s.append(f"TUBE {a} {b}")
-                                        placer.add_tube(a, b)
-                                seq = " ".join(map(str, path + path[:-1:-1]))
-                                s.append(f"POD {k} {seq}")
-                                k +=1
+                            if cost < best_dist:
+                                best_dist = cost
+                                best_path = path
+                            
 
-                            if resources <= 1000:
-                                break
+                    if best_dist < resources:
+                        resources -= best_dist
+                        for a, b in zip(best_path[:-1], best_path[1:]):
+                            if placer.dist_cost[a, b] > 0:
+                                s.append(f"TUBE {a} {b}")
+                                placer.add_tube(a, b)
+                        seq = " ".join(map(str, best_path + best_path[:-1][::-1]))
+                        s.append(f"POD {k} {seq}")
+                        done.add((best_path[0], best_path[-1]))
+                        k +=1
+
+                    if resources <= 1000:
+                        break
 
     # TUBE | UPGRADE | TELEPORT | POD | DESTROY | WAIT
     # print("TUBE 0 1;TUBE 0 2;POD 42 0 1 0 2 0 1 0 2")
