@@ -51,23 +51,26 @@ class Building:
     
     def is_type_of(self, building_type):
         return self.type == building_type
+    
+    def __repr__(self):
+        crew_str = " ".join(map(str, self.crew))
+        return f"Building {self.id} (type {self.type}) has grouped_crew: {crew_str}"
 
 
-def get_cost_matrix(buildings: list[Building], existing_tubes: list[Tube]) -> np.ndarray:
+def get_distance_matrix(buildings: list[Building]) -> np.ndarray:
     """
-    Create a cost matrix for the buildings based on their coordinates.
+    Create a distance matrix for the buildings based on their coordinates.
     
     Args:
         buildings: list of Building objects
-        existing_tubes: list of Tube objects representing existing tubes
 
     Returns:
-        numpy array: cost matrix
+        numpy array: distance matrix
     """
     coords = np.array([[b.x, b.y] for b in buildings])
 
     # Calculate the pairwise distances between buildings
-    temp_d = cdist(coords, coords, metric='euclidean') / 10
+    temp_d = cdist(coords, coords, metric='euclidean')
 
     # Initialize the resulting matrix with -1 to indicate no connection
     dist_cost = np.full(temp_d.shape, np.inf)
@@ -85,16 +88,30 @@ def get_cost_matrix(buildings: list[Building], existing_tubes: list[Tube]) -> np
                     dist_cost[a, b] = temp_d[a, b]
                     dist_cost[b, a] = temp_d[b, a]
 
-    # Set distances for existing tubes to 0
+    return dist_cost
+
+def get_cost_matrix(distance_matrix: np.ndarray, existing_tubes: list[Tube]) -> np.ndarray:
+    """
+    Create a cost matrix for the buildings based on their coordinates.
+    
+    Args:
+        distance_matrix: numpy array representing the distance matrix
+        existing_tubes: list of Tube objects representing existing tubes
+
+    Returns:
+        numpy array: cost matrix
+    """
+    dist_cost = np.floor(distance_matrix.copy() / 10)
+
+    # Set distances for existing tubes to 0.001 (do not set 0 otherwise it's like closed path)
     for tube in existing_tubes:
         a, b = tube.source, tube.target
-        dist_cost[a, b] = 0.0
-        dist_cost[b, a] = 0.0
+        dist_cost[a, b] = 0.001
+        dist_cost[b, a] = 0.001
 
     return dist_cost
 
-def find_shortest_path(source: int, target: int, cost_matrix: np.ndarray) -> tuple[list[int], float]:
-    distances, predecessors = dijkstra(csgraph=cost_matrix, directed=False, indices=source, return_predecessors=True)
+def find_shortest_path(distances: np.ndarray, predecessors: np.ndarray, source: int, target: int) -> tuple[list[int], float]:
     path = []
     i = target
     while i != -9999:
@@ -160,10 +177,12 @@ def render(cost_matrix: np.ndarray, buildings: list[Building], existing_tubes: l
 
 
 all_buildings: list[Building] = []
+turn = 1
 # game loop
 while True:
     resources = int(input())
-    debug_print(f"{resources} resources")
+    debug_print(f"\n\n#### Turn: {turn} ####\n\n{resources} resources")
+    turn += 1
     
     all_present_routes = []
     num_travel_routes = int(input())
@@ -181,68 +200,76 @@ while True:
     for i in range(num_new_buildings):
         s = input().split()
         if len(s) == 4:
+            # Target base, not a landing pad
             type_, id_, x, y = [int(x) for x in s]
-            grouped_crew = [0 for _ in range(21)]
+            grouped_crew = []
         else:
+            # Landing pad with crew
             type_, id_, x, y, num_crew, *crew = [int(x) for x in s]
-            debug_print(f"Building {id_} has crew: {crew}")
             grouped_crew = [0 for _ in range(21)]
             for crew_id in crew:
                 grouped_crew[crew_id] += 1
-            debug_print(f"Building {id_} (type {type_}) has grouped_crew: {grouped_crew}")
-        all_buildings.append(Building(id_, x, y, type_, grouped_crew))
+        building = Building(id_, x, y, type_, grouped_crew)
+        debug_print(building)
+        all_buildings.append(building)
     all_buildings.sort(key=lambda b: b.id)
 
-    cost_matrix = get_cost_matrix(all_buildings, all_present_routes)
-    debug_print(cost_matrix)
+    distance_matrix = get_distance_matrix(all_buildings)
+    cost_matrix = get_cost_matrix(distance_matrix, all_present_routes)
+    debug_print(f"Distance:\n{distance_matrix}")
+    debug_print(f"Cost:\n{cost_matrix}")
 
-    render(cost_matrix, all_buildings, all_present_routes)
+    # render(cost_matrix, all_buildings, all_present_routes)
 
     tic = time.time()
 
     s = ["WAIT"]
     for base in all_buildings:
-        if base.is_landing_pad():
-            if time.time() - tic > 0.4:
+        if not base.is_landing_pad():
+            continue
+
+        for i in range(1, 21):
+            if not base.has_crew_of_type(i):
+                continue
+
+            distances, predecessors = dijkstra(csgraph=cost_matrix, directed=False, indices=base.id, return_predecessors=True)
+
+            best_dist, best_path = np.inf, []
+            for building in all_buildings:
+                if building.is_type_of(i):
+                    path, total_cost = find_shortest_path(distances, predecessors, base.id, building.id)
+                    # debug_print(f"Shortest path from base {base.id} to base {building.id}: {path}")
+                    # debug_print(f"Total Cost: {total_cost}")
+
+                    if total_cost == np.inf or total_cost < 1:
+                        continue
+
+                    cost = total_cost + 1000
+                    if cost < best_dist:
+                        best_dist = cost
+                        best_path = path
+            # debug_print(f"Shortest path for entity type {i}: {best_path} ({best_dist})")
+
+            if best_dist < resources:
+                resources -= best_dist
+                for a, b in zip(best_path[:-1], best_path[1:]):
+                    if cost_matrix[a, b] > 0:
+                        tube = Tube(a, b, 1)
+                        s.append(str(tube))
+                        cost_matrix[a, b] = 0.0
+                        cost_matrix[b, a] = 0.0
+                seq = " ".join(map(str, best_path + best_path[:-1][::-1]))
+                pod_index = 200 + len(all_present_pods)
+                pod = Pod(pod_index, best_path + best_path[:-1][::-1])
+                all_present_pods.append(pod)
+                s.append(str(pod))
+
+            if resources <= 1000:
                 break
-
-            for i in range(1, 21):
-                if base.has_crew_of_type(i):
-                    best_dist, best_path = np.inf, []
-                    for building in all_buildings:
-                        if building.is_type_of(i):
-                            path, total_cost = find_shortest_path(base.id, building.id, cost_matrix)
-                            debug_print(f"Shortest path from point {base.id} to {building.id}: {path}")
-                            # debug_print(f"Total Cost: {total_cost}")
-
-                            if total_cost == np.inf:
-                                continue
-
-                            cost = math.floor(total_cost) + 1000
-                            if cost < best_dist:
-                                best_dist = cost
-                                best_path = path
-                            
-
-                    if best_dist < resources:
-                        resources -= best_dist
-                        for a, b in zip(best_path[:-1], best_path[1:]):
-                            if cost_matrix[a, b] > 0:
-                                tube = Tube(a, b, 1)
-                                s.append(str(tube))
-                                cost_matrix[a, b] = 0.0
-                                cost_matrix[b, a] = 0.0
-                        seq = " ".join(map(str, best_path + best_path[:-1][::-1]))
-                        pod_index = 200 + len(all_present_pods)
-                        pod = Pod(pod_index, best_path + best_path[:-1][::-1])
-                        all_present_pods.append(pod)
-                        s.append(str(pod))
-
-                    if resources <= 1000:
-                        break
 
     # TUBE | UPGRADE | TELEPORT | POD | DESTROY | WAIT
     # print("TUBE 0 1;TUBE 0 2;POD 42 0 1 0 2 0 1 0 2")
 
     print(";".join(s), file=f2, flush=True)
     print(";".join(s))
+    debug_print(f"Time taken: {time.time() - tic:.2f} seconds")
