@@ -244,14 +244,30 @@ while True:
                     if total_cost == np.inf or total_cost < 1:
                         continue
 
-                    cost = total_cost + 1000
-                    if cost < best_dist:
-                        best_dist = cost
+                    if total_cost < best_dist:
+                        best_dist = total_cost
                         best_path = path
             # debug_print(f"Shortest path for entity type {i}: {best_path} ({best_dist})")
 
-            if best_dist < resources:
-                resources -= best_dist
+            debug_print(f"Shortest path from base {base.id} to base {i}: {path} ({best_dist}, {resources})")
+            num_tubes = len(best_path) - 1
+            if resources > best_dist + num_tubes * 1000:
+                for a, b in zip(best_path[:-1], best_path[1:]):
+                    if cost_matrix[a][b] > 0.0015 and resources >= cost_matrix[a][b] + 1000:
+                        resources -= (cost_matrix[a][b] + 1000)
+                        tube = Tube(a, b, 1)
+                        s.append(str(tube))
+                        cost_matrix[a][b] = 0.001
+                        cost_matrix[b][a] = 0.001
+                        pod_index = 200 + len(all_present_pods)
+                        pod = Pod(pod_index, [a, b, a])
+                        all_present_pods.append(pod)
+                        s.append(str(pod))
+
+                    if resources < 1000:
+                        break
+            elif resources > best_dist + 1000:
+                resources -= (best_dist + 1000)
                 for a, b in zip(best_path[:-1], best_path[1:]):
                     if cost_matrix[a, b] > 0:
                         tube = Tube(a, b, 1)
@@ -264,8 +280,12 @@ while True:
                 all_present_pods.append(pod)
                 s.append(str(pod))
 
-            if resources <= 1000:
+            debug_print(f" Remaining: {resources}")
+
+            if resources < 1000:
                 break
+
+
 
     # TUBE | UPGRADE | TELEPORT | POD | DESTROY | WAIT
     # print("TUBE 0 1;TUBE 0 2;POD 42 0 1 0 2 0 1 0 2")
