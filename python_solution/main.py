@@ -101,7 +101,7 @@ def get_cost_matrix(distance_matrix: np.ndarray, existing_tubes: list[Tube]) -> 
     Returns:
         numpy array: cost matrix
     """
-    dist_cost = np.floor(distance_matrix.copy() / 10)
+    dist_cost = np.floor(distance_matrix.copy() * 10)
 
     # Set distances for existing tubes to 0.001 (do not set 0 otherwise it's like closed path)
     for tube in existing_tubes:
