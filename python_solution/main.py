@@ -114,11 +114,12 @@ def get_cost_matrix(distance_matrix: np.ndarray, existing_tubes: list[Tube]) -> 
 def find_shortest_path(distances: np.ndarray, predecessors: np.ndarray, source: int, target: int) -> tuple[list[int], float]:
     path = []
     i = target
-    while i != -9999:
+    while i != -9999 and i != source:
         path.append(int(i))
         i = predecessors[i]
-    if len(path) == 1:
-        path.append(source)
+    if i == -9999:
+        return [], float('inf')  # unreachable
+    path.append(source)
     return path[::-1], distances[target]
 
 
@@ -228,11 +229,11 @@ while True:
         if not base.is_landing_pad():
             continue
 
+        distances, predecessors = dijkstra(csgraph=cost_matrix, directed=False, indices=base.id, return_predecessors=True)
+        
         for i in range(1, 21):
             if not base.has_crew_of_type(i):
                 continue
-
-            distances, predecessors = dijkstra(csgraph=cost_matrix, directed=False, indices=base.id, return_predecessors=True)
 
             best_dist, best_path = np.inf, []
             for building in all_buildings:
