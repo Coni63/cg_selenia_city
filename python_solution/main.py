@@ -147,8 +147,8 @@ def get_distance_matrix(buildings: list[Building], existing_tubes: list[Tube], t
                     dist_cost[b, a] = temp_d[b, a]
 
                     if tubes_per_building.get(simplex[i], 0) >= 5 or tubes_per_building.get(simplex[j], 0) >= 5:
-                        dist_cost[a, b] = 0.0
-                        dist_cost[b, a] = 0.0
+                        dist_cost[a, b] = np.inf
+                        dist_cost[b, a] = np.inf
 
                     for tube in existing_tubes:
                         a = buildings[tube.source]
@@ -157,8 +157,8 @@ def get_distance_matrix(buildings: list[Building], existing_tubes: list[Tube], t
                         d = buildings[simplex[j]]
                         if segments_cross(a, b, c, d):
                             debug_print(f"Tube {tube} crosses segment {simplex[i]}-{simplex[j]}")
-                            dist_cost[simplex[i], simplex[j]] = 0.0
-                            dist_cost[simplex[j], simplex[i]] = 0.0
+                            dist_cost[simplex[i], simplex[j]] = np.inf
+                            dist_cost[simplex[j], simplex[i]] = np.inf
                             break
 
 
@@ -353,6 +353,9 @@ while True:
 
                 path, total_cost = find_shortest_path(distances, predecessors, base.id, building.id)
 
+                if len(path) == 0 or total_cost == np.inf:
+                    continue
+
                 all_options.append(Options(
                     landing_pad=base.id,
                     building_id=building.id,
@@ -363,6 +366,9 @@ while True:
     # debug_print(f"All options: {all_options}")
 
     all_options.sort(key=lambda x: x.fitness(), reverse=True)
+
+    # for option in all_options:
+    #     debug_print(f"Option: {option.landing_pad} -> {option.building_id} | {option.number_of_units} | {option.fitness()} | {option.cost(cost_matrix)} | {option.path}")
 
     debug_print(f"Time after sort: {time.time() - tic:.4f} seconds")
 
