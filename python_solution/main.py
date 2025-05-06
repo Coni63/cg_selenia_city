@@ -96,7 +96,7 @@ class Options:
                 actions.append(str(pod))
         return actions
 
-def get_distance_matrix(buildings: list[Building]) -> np.ndarray:
+def get_distance_matrix(buildings: list[Building], existing_tubes: list[Tube]) -> np.ndarray:
     """
     Create a distance matrix for the buildings based on their coordinates.
     
@@ -127,7 +127,30 @@ def get_distance_matrix(buildings: list[Building]) -> np.ndarray:
                     dist_cost[a, b] = temp_d[a, b]
                     dist_cost[b, a] = temp_d[b, a]
 
+                    for tube in existing_tubes:
+                        a = buildings[tube.source]
+                        b = buildings[tube.target]
+                        c = buildings[simplex[i]]
+                        d = buildings[simplex[j]]
+                        if segments_cross(a, b, c, d):
+                            debug_print(f"Tube {tube} crosses segment {simplex[i]}-{simplex[j]}")
+                            dist_cost[simplex[i], simplex[j]] = 0.0
+                            dist_cost[simplex[j], simplex[i]] = 0.0
+                            break
+
+
     return dist_cost
+
+
+def ccw(A: Building, B: Building, C: Building) -> bool:
+    return (C.y-A.y) * (B.x-A.x) > (B.y-A.y) * (C.x-A.x)
+
+def segments_cross(A: Building, B: Building, C: Building, D: Building) -> bool:
+    """
+    Check if line segments AB and CD intersect.
+    """
+    return ccw(A, C, D) != ccw(B, C, D) and ccw(A, B, C) != ccw(A, B, D)
+
 
 def get_cost_matrix(distance_matrix: np.ndarray, existing_tubes: list[Tube]) -> np.ndarray:
     """
@@ -224,13 +247,13 @@ while True:
     debug_print(f"\n\n#### Turn: {turn} ####\n\n{resources} resources")
     turn += 1
     
-    all_present_routes = []
+    all_present_routes: list[Tube] = []
     num_travel_routes = int(input())
     for i in range(num_travel_routes):
         building_id_1, building_id_2, capacity = [int(j) for j in input().split()]
         all_present_routes.append(Tube(source=building_id_1, target=building_id_2, capacity=capacity))
     
-    all_present_pods = []
+    all_present_pods: list[Pod] = []
     num_pods = int(input())
     for i in range(num_pods):
         id_, num_nodes, *path = [int(x) for x in input().split()]
@@ -254,7 +277,7 @@ while True:
         all_buildings.append(building)
     all_buildings.sort(key=lambda b: b.id)
 
-    distance_matrix = get_distance_matrix(all_buildings)
+    distance_matrix = get_distance_matrix(all_buildings, all_present_routes)
     adj_matrix = np.where(distance_matrix == np.inf, 0, 1)
     cost_matrix = get_cost_matrix(distance_matrix, all_present_routes)
     # debug_print(f"Distance:\n{distance_matrix}")
