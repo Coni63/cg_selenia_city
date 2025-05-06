@@ -156,7 +156,7 @@ def get_distance_matrix(buildings: list[Building], existing_tubes: list[Tube], t
                         c = buildings[simplex[i]]
                         d = buildings[simplex[j]]
                         if segments_cross(a, b, c, d):
-                            debug_print(f"Tube {tube} crosses segment {simplex[i]}-{simplex[j]}")
+                            # debug_print(f"Tube {tube} crosses segment {simplex[i]}-{simplex[j]}")
                             dist_cost[simplex[i], simplex[j]] = np.inf
                             dist_cost[simplex[j], simplex[i]] = np.inf
                             break
@@ -365,7 +365,7 @@ while True:
 
     # debug_print(f"All options: {all_options}")
 
-    all_options.sort(key=lambda x: x.fitness(), reverse=True)
+    all_options.sort(key=lambda x: (x.fitness(), -x.cost(cost_matrix)), reverse=True)
 
     # for option in all_options:
     #     debug_print(f"Option: {option.landing_pad} -> {option.building_id} | {option.number_of_units} | {option.fitness()} | {option.cost(cost_matrix)} | {option.path}")
