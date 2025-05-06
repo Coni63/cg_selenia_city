@@ -34,7 +34,10 @@ class Tube:
     
     def __str__(self):
         return f"TUBE {self.source} {self.target}"
-
+    
+    def connect(self, building_id: int) -> bool:
+        return self.source == building_id or self.target == building_id
+    
 @dataclass
 class Building:
     id: int  # 0 - 150
@@ -95,8 +98,24 @@ class Options:
                 all_present_pods.append(pod)
                 actions.append(str(pod))
         return actions
+    
+def count_tubes_per_building(existing_tubes: list[Tube]) -> dict[int, int]:
+    """
+    Count the number of tubes connected to each building.
+    
+    Args:
+        existing_tubes: list of Tube objects
 
-def get_distance_matrix(buildings: list[Building], existing_tubes: list[Tube]) -> np.ndarray:
+    Returns:
+        dict: mapping of building ID to number of tubes
+    """
+    tubes_per_building = {}
+    for tube in existing_tubes:
+        tubes_per_building[tube.source] = tubes_per_building.get(tube.source, 0) + 1
+        tubes_per_building[tube.target] = tubes_per_building.get(tube.target, 0) + 1
+    return tubes_per_building
+
+def get_distance_matrix(buildings: list[Building], existing_tubes: list[Tube], tubes_per_building: dict[int, int]) -> np.ndarray:
     """
     Create a distance matrix for the buildings based on their coordinates.
     
@@ -127,6 +146,10 @@ def get_distance_matrix(buildings: list[Building], existing_tubes: list[Tube]) -
                     dist_cost[a, b] = temp_d[a, b]
                     dist_cost[b, a] = temp_d[b, a]
 
+                    if tubes_per_building.get(simplex[i], 0) >= 5 or tubes_per_building.get(simplex[j], 0) >= 5:
+                        dist_cost[a, b] = 0.0
+                        dist_cost[b, a] = 0.0
+
                     for tube in existing_tubes:
                         a = buildings[tube.source]
                         b = buildings[tube.target]
@@ -140,6 +163,23 @@ def get_distance_matrix(buildings: list[Building], existing_tubes: list[Tube]) -
 
 
     return dist_cost
+
+
+def has_too_many_tubes(option: Options, tubes_per_building: dict[int, int]) -> bool:
+    """
+    Check if the option has too many tubes connected to the buildings involved.
+    
+    Args:
+        option: Options object
+        tubes_per_building: dict mapping building ID to number of tubes
+
+    Returns:
+        bool: True if there are too many tubes, False otherwise
+    """
+    for a, b in zip(option.path[:-1], option.path[1:]):
+        if tubes_per_building.get(a, 0) >= 5 or tubes_per_building.get(b, 0) >= 5:
+            return True
+    return False
 
 
 def ccw(A: Building, B: Building, C: Building) -> bool:
@@ -277,7 +317,9 @@ while True:
         all_buildings.append(building)
     all_buildings.sort(key=lambda b: b.id)
 
-    distance_matrix = get_distance_matrix(all_buildings, all_present_routes)
+    
+    tubes_per_building = count_tubes_per_building(all_present_routes)
+    distance_matrix = get_distance_matrix(all_buildings, all_present_routes, tubes_per_building)
     adj_matrix = np.where(distance_matrix == np.inf, 0, 1)
     cost_matrix = get_cost_matrix(distance_matrix, all_present_routes)
     # debug_print(f"Distance:\n{distance_matrix}")
@@ -325,11 +367,15 @@ while True:
     debug_print(f"Time after sort: {time.time() - tic:.4f} seconds")
 
     for option in all_options:
-        if option.cost(cost_matrix) < resources:
+        if option.cost(cost_matrix) < resources and not has_too_many_tubes(option, tubes_per_building):
             resources -= option.cost(cost_matrix)
 
             actions = option.get_actions(cost_matrix, all_present_pods)
             s.extend(actions)
+
+            for a, b in zip(option.path[:-1], option.path[1:]):
+                tubes_per_building[a] = tubes_per_building.get(a, 0) + 1
+                tubes_per_building[b] = tubes_per_building.get(b, 0) + 1
 
     # TUBE | UPGRADE | TELEPORT | POD | DESTROY | WAIT
     # print("TUBE 0 1;TUBE 0 2;POD 42 0 1 0 2 0 1 0 2")

@@ -1,4 +1,4 @@
 remove tubes that overlap when computing delaunay's after first turn  -- OK
-limit number of tubes per nodes  (5 tubes per node)
+limit number of tubes per nodes  (5 tubes per node)  -- OK
 try upgrade
 try teleport
