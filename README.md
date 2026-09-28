@@ -1,63 +1,62 @@
 # Setup
 
-### Build the game
+### Game source
 
-Follow documentation on https://github.com/0x6E0FF/FallChallenge2024-SeleniaCity/tree/main
+The CodinGame game source lives in `FallChallenge2024-SeleniaCity/` (cloned from
+https://github.com/0x6E0FF/FallChallenge2024-SeleniaCity). It includes a custom
+`com.codingame.bench.BenchRunner` (`src/main/java/com/codingame/bench/BenchRunner.java`)
+and a `maven-shade-plugin` config in `pom.xml` that together produce a standalone
+benchmark jar — no CodinGame IDE/export needed.
 
-### Run the game
-
-#### Rust version
-
-On the rust project, build and run the provided agent:
-
-**Debug mode:**
+Build it with:
 
 ```sh
-cargo build
-java -jar ../FallChallenge2024-SeleniaCity/target/fall-challenge-2024-moon-city-1.0-SNAPSHOT.jar "target/debug/agent.exe" ../FallChallenge2024-SeleniaCity/config/ ref_scores.txt
+cd FallChallenge2024-SeleniaCity
+mvn -q -DskipTests package
 ```
 
-**Release mode:**
+This produces `FallChallenge2024-SeleniaCity/target/fall-challenge-2024-moon-city-1.0-SNAPSHOT.jar`,
+which runs every `testN.json` in `FallChallenge2024-SeleniaCity/config/` against an
+agent command and reports the score (parsed from the referee's `points` metadata) for each.
+
+### Python solution dependencies
 
 ```sh
-cargo build --release
-java -jar ../FallChallenge2024-SeleniaCity/target/fall-challenge-2024-moon-city-1.0-SNAPSHOT.jar "target/release/agent.exe" ../FallChallenge2024-SeleniaCity/config/ ref_scores.txt
+cd python_solution
+poetry install --no-root
 ```
 
-**Precompiled version (may be outdated):**
+### Running the benchmark
+
+`bench_full.py` (at the repo root) wraps the jar: it builds it if missing, picks the
+`python_solution/.venv` interpreter by default, and runs the full test suite.
 
 ```sh
-cargo build --release
-java -jar fall-challenge-2024-moon-city-1.0-SNAPSHOT.jar "rust_solution/target/release/agent.exe" config/ ref_scores.txt
+python bench_full.py                # full 24-test benchmark
+python bench_full.py --test 8       # single test case
+python bench_full.py --rebuild      # force a fresh mvn package before running
 ```
 
-**Run single game**
+To benchmark a different solver (e.g. a future Rust port), pass `--solution`:
 
 ```sh
-cargo build --release
-java -jar fall-challenge-2024-moon-city-1.0-SNAPSHOT.jar "rust_solution/target/release/agent.exe" config/ ref_scores.txt 1
-                                                                                                                       # 1 is the game number
+python bench_full.py --solution rust_solution/target/release/agent.exe
 ```
 
-#### Python version
-
-**Precompiled version (may be outdated):**
-
-If you are using a venv, you may need to change the path of the venv as default python interpreter:
+Under the hood this is equivalent to:
 
 ```sh
-set PATH=F:\admin\PycharmProjects\CG\Competition\optimisation\cg_selenia_city\python_solution\.venv\Scripts;%PATH%
-         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ adjust
+java -jar FallChallenge2024-SeleniaCity/target/fall-challenge-2024-moon-city-1.0-SNAPSHOT.jar \
+     "<python_solution/.venv python> python_solution/main.py" \
+     FallChallenge2024-SeleniaCity/config ref_scores.txt [testNumber]
 ```
 
-Then you can run it
-
-```sh
-java -jar fall-challenge-2024-moon-city-1.0-SNAPSHOT.jar "python python_solution/main.py" config/ ref_scores.txt
-```
+Set `BENCH_VERBOSE=1` to print each test's stderr/summary output for debugging.
 
 ### Sources
 
 - https://www.codingame.com/forum/t/fall-challenge-2024-feedback-and-strategies/205205/11
 
 - https://github.com/mourner/delaunator-rs
+
+- https://virtual-atom.com/codingame/fall24/
